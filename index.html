@@ -9,11 +9,11 @@
     <meta name="description" content="Quickly leave multiple Discord servers | FastLeave by 7sTools">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="icon" href="logo/favicon.ico" type="image/x-icon">
-    <link rel="icon" type="image/png" sizes="32x32" href="logo/favicon-32x32.png" />
-    <link rel="icon" type="image/png" sizes="16x16" href="logo/favicon-16x16.png" />
-    <link rel="apple-touch-icon" href="logo/apple-touch-icon.png" />
-    <link rel="icon" type="image/png" sizes="512x512" href="logo/android-chrome-512x512.png" />
-    <link rel="icon" type="image/png" sizes="192x192" href="logo/android-chrome-192x192.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/android-chrome-512x512.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/android-chrome-192x192.png" />
     <style>
         :root {
             --bg-primary: #09090b;
@@ -77,9 +77,18 @@
             font-size: 1.6rem; 
         }
 
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex: 1;
+            justify-content: flex-end;
+        }
+
         .search-wrapper {
             position: relative;
-            width: 360px;
+            width: 100%;
+            max-width: 360px;
             background: var(--bg-primary);
             border: 1px solid var(--border-color);
             border-radius: 12px;
@@ -111,6 +120,57 @@
         }
         #searchInput:focus { outline: none; }
         #searchInput:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .btn-website {
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            background-color: #000;
+            background-image: 
+                url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.2'/%3E%3C/svg%3E");
+            border-radius: 10px;
+            color: #fff;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            white-space: nowrap;
+            overflow: hidden;
+            border: 1px solid transparent;
+            flex-shrink: 0;
+        }
+
+        .btn-website::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            padding: 1px;
+            border-radius: 10px; 
+            background: linear-gradient(
+                90deg, 
+                rgba(255,255,255,0.05) 0%, 
+                rgba(255,255,255,0.05) 40%, 
+                rgba(255,255,255,0.6) 50%, 
+                rgba(255,255,255,0.05) 60%, 
+                rgba(255,255,255,0.05) 100%
+            );
+            background-size: 200% auto;
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+            animation: borderShimmer 5s linear infinite;
+        }
+
+        @keyframes borderShimmer {
+            to { background-position: 200% center; }
+        }
+
+        .btn-website i { z-index: 1; position: relative; }
+        .btn-website span { z-index: 1; position: relative; }
+
 
         main {
             flex: 1;
@@ -156,7 +216,6 @@
             cursor: pointer;
             user-select: none;
             transition: color 0.2s;
-            justify-content: center;
         }
         .remember-me:hover { color: var(--text-primary); }
 
@@ -227,7 +286,6 @@
             color: white;
         }
         #loadServers:hover { 
-            transform: translateY(-2px);
             box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
         }
 
@@ -373,20 +431,30 @@
             margin-top: 10px;
         }
 
+        .server-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+        }
+
         .server-name {
             font-size: 1.15rem;
             letter-spacing: -0.02em;
             color: var(--text-primary);
-            margin-bottom: 4px;
+            margin-bottom: 0; /* remove bottom margin so badges sit on same line */
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            flex: 1; /* allow name to take remaining space and ellipsize */
         }
 
         .server-badges {
             display: flex;
             gap: 6px;
-            margin-bottom: 12px;
+            margin-bottom: 0;
+            margin-left: 8px;
+            flex-shrink: 0;
         }
 
         .badge {
@@ -637,9 +705,14 @@
             <div class="logo">
                 <i class="fab fa-discord"></i>7s - FastLeave
             </div>
-            <div class="search-wrapper">
-                <i class="fas fa-search"></i>
-                <input type="text" id="searchInput" placeholder="Search servers..." disabled>
+            <div class="header-controls">
+                <div class="search-wrapper">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="searchInput" placeholder="Search servers..." disabled>
+                </div>
+                <a href="https://7stools.vercel.app/" target="_blank" class="btn-website">
+                    <i class="fas fa-globe"></i> <span>My Website</span>
+                </a>
             </div>
         </header>
 
@@ -848,9 +921,14 @@
                     ? `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png`
                     : null;
 
-                const bannerStyle = iconUrl
-                    ? `background-image: url('${iconUrl}'); opacity: 0.3; transform: scale(1.1);`
-                    : `background: linear-gradient(45deg, #2b2d31, #1e1f22); opacity: 0.5;`;
+                // Use the guild.banner (if available) for the banner image, not the icon
+                const bannerUrl = guild.banner
+                    ? `https://cdn.discordapp.com/banners/${guild.id}/${guild.banner}.png?size=1024`
+                    : null;
+
+                const bannerStyle = bannerUrl
+                    ? `background-image: url('${bannerUrl}'); transform: scale(1.1);`
+                    : `background: linear-gradient(45deg, #2b2d31, #1e1f22);`;
 
                 const iconHtml = iconUrl
                     ? `<div class="server-icon" style="background-image: url('${iconUrl}');"></div>`
@@ -872,8 +950,10 @@
                     </div>
                     <div class="checkbox-indicator"><i class="fas fa-check"></i></div>
                     <div class="card-content">
-                        <div class="server-name" title="${guild.name}">${guild.name}</div>
-                        <div class="server-badges">${badgesHtml}</div>
+                        <div class="server-title">
+                            <div class="server-name" title="${guild.name}">${guild.name}</div>
+                            <div class="server-badges">${badgesHtml}</div>
+                        </div>
                         <div class="server-meta">
                             <span>ID: ${guild.id}</span>
                             <div class="card-actions">
@@ -1091,21 +1171,35 @@
 
         async function leaveSelectedServers() {
             const count = selectedGuilds.size;
-            if (!confirm(`Are you sure you want to leave ${count} servers? This cannot be undone.`)) return;
+            let leaveCount = 0;
+            let deleteCount = 0;
+            const guildsToProcess = Array.from(selectedGuilds).map(guildId => {
+                const guild = allGuilds.find(g => g.id === guildId);
+                if (guild && guild.owner) {
+                    deleteCount++;
+                    return { id: guildId, action: 'delete' };
+                } else {
+                    leaveCount++;
+                    return { id: guildId, action: 'leave' };
+                }
+            });
+
+            if (!confirm(`Are you sure you want to leave ${leaveCount} servers and delete ${deleteCount} servers? This cannot be undone.`)) return;
 
             const btn = elements.leaveBtn;
             const originalText = btn.innerHTML;
             btn.disabled = true;
 
-            let leftCount = 0;
-            const guildsToLeave = Array.from(selectedGuilds);
+            let processedCount = 0;
 
-            for (let i = 0; i < guildsToLeave.length; i++) {
-                const guildId = guildsToLeave[i];
-                btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Leaving ${leftCount + 1}/${count}`;
+            for (let i = 0; i < guildsToProcess.length; i++) {
+                const { id: guildId, action } = guildsToProcess[i];
+                const actionText = action === 'delete' ? 'Deleting' : 'Leaving';
+                btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${actionText} ${processedCount + 1}/${count}`;
 
                 try {
-                    const response = await fetch(`${API_BASE}/users/@me/guilds/${guildId}`, {
+                    const endpoint = action === 'delete' ? `${API_BASE}/guilds/${guildId}` : `${API_BASE}/users/@me/guilds/${guildId}`;
+                    const response = await fetch(endpoint, {
                         method: 'DELETE',
                         headers: { 'Authorization': userToken }
                     });
@@ -1117,10 +1211,10 @@
                         const card = document.querySelector(`.server-card[data-id="${guildId}"]`);
                         if (card) card.remove();
 
-                        leftCount++;
+                        processedCount++;
                     }
                 } catch (error) {
-                    console.error(`Failed to leave guild ${guildId}:`, error);
+                    console.error(`Failed to ${action} guild ${guildId}:`, error);
                 }
 
                 await new Promise(resolve => setTimeout(resolve, 1000));
@@ -1131,7 +1225,7 @@
 
             renderServers(allGuilds);
             updateActionBar();
-            showToast(`Successfully left ${leftCount} servers`, 'success');
+            showToast(`Successfully processed ${processedCount} servers`, 'success');
         }
     </script>
 </body>
