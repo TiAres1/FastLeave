@@ -952,6 +952,22 @@
             });
         });
 
+        document.querySelectorAll('.dropdown > button').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const content = btn.nextElementSibling;
+                const isOpen = content.style.display === 'block';
+                document.querySelectorAll('.dropdown-content').forEach(c => c.style.display = 'none');
+                if (!isOpen) {
+                    content.style.display = 'block';
+                }
+            });
+        });
+
+        document.addEventListener('click', () => {
+            document.querySelectorAll('.dropdown-content').forEach(c => c.style.display = 'none');
+        });
+
         function showToast(message, type = 'success') {
             elements.toast.textContent = message;
             elements.toast.className = `toast show ${type}`;
