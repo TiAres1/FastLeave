@@ -561,9 +561,9 @@
             padding: 16px 32px;
             border-radius: 20px;
             position: fixed;
-            bottom: 30px;
+            bottom: 100px;
             left: 50%;
-            transform: translateX(-50%) translateY(150%);
+            transform: translateX(-50%);
             display: flex;
             align-items: center;
             gap: 24px;
@@ -573,9 +573,9 @@
             white-space: nowrap;
         }
 
-        .action-bar.visible { transform: translateX(-50%) translateY(0); }
+        .action-bar.hidden { display: none; }
 
-        .selection-count { font-weight: 600; color: var(--text-primary); }
+        .selection-count { font-weight: 600; color: var(--text-primary); text-align: center; }
 
         .btn-danger {
             background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
@@ -661,15 +661,14 @@
             }
             
             .servers-grid {
-                grid-template-columns: 1fr; 
-                padding-bottom: 150px;
+                grid-template-columns: 1fr;
             }
 
             .action-bar {
-                width: 90%;
+                width: 70%;
                 left: 50%;
-                bottom: 20px;
-                padding: 1rem;
+                bottom: 65px;
+                padding: 0.rem;
                 flex-direction: column;
                 gap: 0.8rem;
                 border-radius: 16px;
@@ -693,9 +692,70 @@
             }
         }
         
-        @media (max-width: 380px) {
-            .logo { font-size: 1.3rem; }
-            .server-card { height: auto; min-height: 240px; }
+        .tab { 
+            background: transparent; 
+            color: var(--text-secondary); 
+            padding: 8px 16px; 
+            border-radius: 8px; 
+            border: 1px solid var(--border-color); 
+            cursor: pointer; 
+            transition: var(--transition); 
+            font-size: 0.9rem;
+        }
+        .tab.active { 
+            background: var(--accent); 
+            color: white; 
+            border-color: var(--accent);
+        }
+        .tab:hover { 
+            color: var(--text-primary); 
+            border-color: var(--text-secondary);
+        }
+
+        .tabs { 
+            display: flex; 
+            gap: 1rem; 
+            margin-bottom: 2rem; 
+            justify-content: center;
+        }
+
+        .pagination { 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            gap: 1rem; 
+            margin-top: 2rem; 
+        }
+        .pagination button { 
+            background: var(--bg-secondary); 
+            border: 1px solid var(--border-color); 
+            color: var(--text-secondary); 
+            width: 40px; 
+            height: 40px; 
+            border-radius: 10px; 
+            cursor: pointer; 
+            transition: var(--transition); 
+            display: flex; 
+            align-items: center; 
+            justify-content: center;
+            font-size: 1.2rem;
+        }
+        .pagination button:hover:not(:disabled) { 
+            background: var(--accent); 
+            color: white; 
+            border-color: var(--accent);
+            transform: translateY(-2px);
+        }
+        .pagination button:disabled { 
+            opacity: 0.5; 
+            cursor: not-allowed; 
+            transform: none;
+        }
+        #pageInfo { 
+            color: var(--text-secondary); 
+            font-weight: 600;
+            min-width: 60px;
+            text-align: center;
         }
     </style>
 </head>
@@ -736,11 +796,18 @@
             </div>
 
             <div class="dashboard" id="dashboard">
+                <div class="tabs">
+                    <button class="tab active" data-tab="servers">Servers</button>
+                    <button class="tab" data-tab="dms">DMs</button>
+                </div>
                 <div class="toolbar">
                     <div class="stats">
-                        <span id="serverCount">0</span> Servers
+                        <span id="itemCount">0</span> <span id="itemType">Servers</span>
                     </div>
                     <div class="actions">
+                        <button id="refreshBtn" class="btn-text" title="Refresh">
+                            <i class="fas fa-refresh"></i> Refresh
+                        </button>
                         <button id="exportBtn" class="btn-text" title="Export List">
                             <i class="fas fa-file-export"></i> Export
                         </button>
@@ -773,14 +840,20 @@
                     </div>
                 </div>
                 <div id="serversContainer" class="servers-grid"></div>
+                <div id="dmsContainer" class="servers-grid" style="display: none;"></div>
+                <div class="pagination" id="pagination">
+                    <button id="prevPage"><i class="fas fa-chevron-left"></i></button>
+                    <span id="pageInfo">1 / 1</span>
+                    <button id="nextPage"><i class="fas fa-chevron-right"></i></button>
+                </div>
             </div>
         </main>
 
-        <div class="action-bar" id="actionBar">
+        <div class="action-bar hidden" id="actionBar">
             <div class="selection-count">
-                <span id="selectedCount">0</span> servers selected
+                Selected: <span id="selectedCount">0</span> <span id="selectedType">servers</span>
             </div>
-            <button id="leaveBtn" class="btn-danger">
+            <button id="processBtn" class="btn-danger">
                 <i class="fas fa-sign-out-alt"></i> Leave Selected
             </button>
         </div>
@@ -791,9 +864,16 @@
     <script>
         const API_BASE = 'https://discord.com/api/v10';
         let userToken = '';
+        let currentTab = 'servers';
         let allGuilds = [];
+        let allDMs = [];
         let selectedGuilds = new Set();
+        let selectedDMs = new Set();
         let lockedGuilds = new Set();
+        let lockedDMs = new Set();
+        let currentPage = 1;
+        let itemsPerPage = window.innerWidth > 768 ? 20 : 10;
+        let currentDMFilter = 'all';
 
         const elements = {
             tokenInput: document.getElementById('tokenInput'),
@@ -801,16 +881,23 @@
             loadBtn: document.getElementById('loadServers'),
             loginPanel: document.getElementById('loginPanel'),
             dashboard: document.getElementById('dashboard'),
-            container: document.getElementById('serversContainer'),
+            serversContainer: document.getElementById('serversContainer'),
+            dmsContainer: document.getElementById('dmsContainer'),
             searchInput: document.getElementById('searchInput'),
-            serverCount: document.getElementById('serverCount'),
+            itemCount: document.getElementById('itemCount'),
+            itemType: document.getElementById('itemType'),
             selectAllBtn: document.getElementById('selectAllBtn'),
             actionBar: document.getElementById('actionBar'),
             selectedCount: document.getElementById('selectedCount'),
-            leaveBtn: document.getElementById('leaveBtn'),
+            selectedType: document.getElementById('selectedType'),
+            processBtn: document.getElementById('processBtn'),
             toast: document.getElementById('toast'),
             exportBtn: document.getElementById('exportBtn'),
-            logoutBtn: document.getElementById('logoutBtn')
+            refreshBtn: document.getElementById('refreshBtn'),
+            logoutBtn: document.getElementById('logoutBtn'),
+            prevPage: document.getElementById('prevPage'),
+            nextPage: document.getElementById('nextPage'),
+            pageInfo: document.getElementById('pageInfo')
         };
 
         window.addEventListener('DOMContentLoaded', () => {
@@ -823,22 +910,38 @@
             }
         });
 
+        window.addEventListener('resize', () => {
+            const newItemsPerPage = window.innerWidth > 768 ? 20 : 10;
+            if (newItemsPerPage !== itemsPerPage) {
+                itemsPerPage = newItemsPerPage;
+                currentPage = 1;
+                renderCurrent();
+            }
+        });
+
         function showTokenPanel() {
             elements.loginPanel.style.display = 'flex';
             elements.dashboard.style.display = 'none';
         }
 
         elements.loadBtn.addEventListener('click', loadServers);
-        elements.searchInput.addEventListener('input', filterServers);
+        elements.searchInput.addEventListener('input', filterItems);
         elements.selectAllBtn.addEventListener('click', toggleSelectAll);
-        elements.leaveBtn.addEventListener('click', leaveSelectedServers);
-        if (elements.exportBtn) elements.exportBtn.addEventListener('click', exportServerList);
+        elements.processBtn.addEventListener('click', processSelected);
+        if (elements.exportBtn) elements.exportBtn.addEventListener('click', exportList);
+        if (elements.refreshBtn) elements.refreshBtn.addEventListener('click', refreshCurrent);
         if (elements.logoutBtn) elements.logoutBtn.addEventListener('click', logout);
+        if (elements.prevPage) elements.prevPage.addEventListener('click', prevPage);
+        if (elements.nextPage) elements.nextPage.addEventListener('click', nextPage);
+
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => switchTab(tab.dataset.tab));
+        });
 
         document.querySelectorAll('[data-sort]').forEach(item => {
             item.addEventListener('click', (e) => {
                 e.preventDefault();
-                sortServers(e.target.dataset.sort);
+                sortItems(e.target.dataset.sort);
             });
         });
 
@@ -859,8 +962,125 @@
             localStorage.removeItem('discord_token');
             userToken = '';
             elements.tokenInput.value = '';
+            allGuilds = [];
+            allDMs = [];
+            selectedGuilds.clear();
+            selectedDMs.clear();
+            lockedGuilds.clear();
+            lockedDMs.clear();
             showTokenPanel();
             showToast('Logged out');
+        }
+
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+            currentTab = tab;
+            currentPage = 1;
+            if (tab === 'dms') currentDMFilter = 'all';
+
+            if (tab === 'servers') {
+                elements.serversContainer.style.display = 'grid';
+                elements.dmsContainer.style.display = 'none';
+                renderServers(allGuilds);
+                updateSortOptions('servers');
+                updateSmartSelect('servers');
+            } else {
+                elements.serversContainer.style.display = 'none';
+                elements.dmsContainer.style.display = 'grid';
+                if (allDMs.length === 0) loadDMs();
+                else renderDMsFiltered();
+                updateSortOptions('dms');
+                updateSmartSelect('dms');
+            }
+            updateStats();
+            updateActionBar();
+        }
+
+        function updateSortOptions(tab) {
+            const sortContent = document.querySelector('.dropdown-content');
+            if (tab === 'servers') {
+                sortContent.innerHTML = `
+                    <a href="#" data-sort="name-asc">Name (A-Z)</a>
+                    <a href="#" data-sort="name-desc">Name (Z-A)</a>
+                    <a href="#" data-sort="newest">Newest Created</a>
+                    <a href="#" data-sort="oldest">Oldest Created</a>
+                `;
+            } else {
+                sortContent.innerHTML = `
+                    <a href="#" data-sort="all">All</a>
+                    <a href="#" data-sort="users">Users</a>
+                    <a href="#" data-sort="groups">Groups</a>
+                    <a href="#" data-sort="bots">Bots</a>
+                `;
+            }
+            document.querySelectorAll('[data-sort]').forEach(item => {
+                item.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    sortItems(e.target.dataset.sort);
+                });
+            });
+        }
+
+        function updateSmartSelect(tab) {
+            const smartSelectContent = document.querySelector('#smartSelectBtn').nextElementSibling;
+            if (tab === 'servers') {
+                smartSelectContent.innerHTML = `
+                    <a href="#" data-action="no-icon">No Icon (Sketchy)</a>
+                    <a href="#" data-action="non-admin">Not Admin/Owner</a>
+                `;
+            } else {
+                smartSelectContent.innerHTML = `
+                    <a href="#" data-action="bots">Bots</a>
+                    <a href="#" data-action="groups">Groups</a>
+                    <a href="#" data-action="users">Users</a>
+                `;
+            }
+            document.querySelectorAll('.dropdown-content a[data-action]').forEach(item => {
+                item.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    handleSmartSelect(e.target.dataset.action);
+                });
+            });
+        }
+
+        function refreshCurrent() {
+            if (currentTab === 'servers') loadServers();
+            else loadDMs();
+        }
+
+        function prevPage() {
+            if (currentPage > 1) {
+                currentPage--;
+                renderCurrent();
+            }
+        }
+
+        function nextPage() {
+            const items = currentTab === 'servers' ? allGuilds : allDMs;
+            const totalPages = Math.ceil(items.length / itemsPerPage);
+            if (currentPage < totalPages) {
+                currentPage++;
+                renderCurrent();
+            }
+        }
+
+        function renderDMsFiltered() {
+            let filtered = allDMs;
+            if (currentDMFilter !== 'all') {
+                filtered = allDMs.filter(dm => {
+                    if (currentDMFilter === 'users') return dm.type === 1 && !dm.recipients[0].bot;
+                    if (currentDMFilter === 'groups') return dm.type === 3;
+                    if (currentDMFilter === 'bots') return dm.type === 1 && dm.recipients[0].bot;
+                    return true;
+                });
+            }
+            renderDMs(filtered);
+        }
+
+        function renderCurrent() {
+            if (currentTab === 'servers') renderServers(allGuilds);
+            else renderDMsFiltered();
         }
 
         async function loadServers() {
@@ -892,8 +1112,12 @@
                 elements.loginPanel.style.display = 'none';
                 elements.dashboard.style.display = 'block';
                 elements.searchInput.disabled = false;
+                currentPage = 1;
 
-                renderServers(allGuilds);
+                if (currentTab === 'servers') {
+                    renderServers(allGuilds);
+                    updateStats();
+                }
                 showToast(`Successfully loaded ${allGuilds.length} servers`);
             } catch (error) {
                 showToast('Failed to load servers. Check token.', 'error');
@@ -903,13 +1127,55 @@
             }
         }
 
+        async function loadDMs() {
+            userToken = elements.tokenInput.value.trim();
+
+            if (!userToken) {
+                showToast('Please enter your Discord token', 'error');
+                return;
+            }
+
+            elements.refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+            elements.refreshBtn.disabled = true;
+
+            try {
+                const response = await fetch(`${API_BASE}/users/@me/channels`, {
+                    headers: { 'Authorization': userToken }
+                });
+
+                if (!response.ok) throw new Error('Invalid token');
+
+                allDMs = (await response.json()).filter(c => c.type === 1 || c.type === 3);
+                currentPage = 1;
+
+                if (currentTab === 'dms') {
+                    renderDMs(allDMs);
+                    updateStats();
+                }
+                showToast(`Successfully loaded ${allDMs.length} DMs`);
+            } catch (error) {
+                showToast('Failed to load DMs. Check token.', 'error');
+            } finally {
+                elements.refreshBtn.innerHTML = '<i class="fas fa-refresh"></i> Refresh';
+                elements.refreshBtn.disabled = false;
+            }
+        }
+
         function renderServers(guilds) {
-            elements.container.innerHTML = '';
-            elements.serverCount.textContent = guilds.length;
+            const totalPages = Math.ceil(guilds.length / itemsPerPage);
+            const start = (currentPage - 1) * itemsPerPage;
+            const end = start + itemsPerPage;
+            const pageItems = guilds.slice(start, end);
+
+            elements.serversContainer.innerHTML = '';
+            elements.itemCount.textContent = guilds.length;
+            elements.pageInfo.textContent = `${currentPage} / ${totalPages || 1}`;
+            elements.prevPage.disabled = currentPage === 1;
+            elements.nextPage.disabled = currentPage === totalPages || totalPages === 0;
 
             const fragment = document.createDocumentFragment();
 
-            guilds.forEach(guild => {
+            pageItems.forEach(guild => {
                 const card = document.createElement('div');
                 const isLocked = lockedGuilds.has(guild.id);
                 const isSelected = selectedGuilds.has(guild.id);
@@ -921,7 +1187,6 @@
                     ? `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png`
                     : null;
 
-                // Use the guild.banner (if available) for the banner image, not the icon
                 const bannerUrl = guild.banner
                     ? `https://cdn.discordapp.com/banners/${guild.id}/${guild.banner}.png?size=1024`
                     : null;
@@ -986,24 +1251,116 @@
                 fragment.appendChild(card);
             });
 
-            elements.container.appendChild(fragment);
+            elements.serversContainer.appendChild(fragment);
         }
 
-        function toggleLock(guildId, card) {
-            if (lockedGuilds.has(guildId)) {
-                lockedGuilds.delete(guildId);
+        function renderDMs(dms) {
+            const totalPages = Math.ceil(dms.length / itemsPerPage);
+            const start = (currentPage - 1) * itemsPerPage;
+            const end = start + itemsPerPage;
+            const pageItems = dms.slice(start, end);
+
+            elements.dmsContainer.innerHTML = '';
+            elements.itemCount.textContent = dms.length;
+            elements.pageInfo.textContent = `${currentPage} / ${totalPages || 1}`;
+            elements.prevPage.disabled = currentPage === 1;
+            elements.nextPage.disabled = currentPage === totalPages || totalPages === 0;
+
+            const fragment = document.createDocumentFragment();
+
+            pageItems.forEach(dm => {
+                const card = document.createElement('div');
+                const isLocked = lockedDMs.has(dm.id);
+                const isSelected = selectedDMs.has(dm.id);
+
+                card.className = `server-card ${isSelected ? 'selected' : ''} ${isLocked ? 'locked' : ''}`;
+                card.dataset.id = dm.id;
+
+                let name, avatarUrl, badgesHtml = '';
+
+                if (dm.type === 1) {
+                    const recipient = dm.recipients[0];
+                    name = recipient.username;
+                    avatarUrl = recipient.avatar ? `https://cdn.discordapp.com/avatars/${recipient.id}/${recipient.avatar}.png` : null;
+                    if (recipient.bot) badgesHtml = `<span class="badge admin">Bot</span>`;
+                } else if (dm.type === 3) {
+                    name = dm.name || dm.recipients.map(r => r.username).join(', ');
+                    avatarUrl = dm.icon ? `https://cdn.discordapp.com/channel-icons/${dm.id}/${dm.icon}.png` : null;
+                    badgesHtml = `<span class="badge owner">Group</span>`;
+                }
+
+                const bannerStyle = `background: linear-gradient(45deg, #2b2d31, #1e1f22);`;
+
+                const iconHtml = avatarUrl
+                    ? `<div class="server-icon" style="background-image: url('${avatarUrl}');"></div>`
+                    : `<div class="server-icon">${name.charAt(0).toUpperCase()}</div>`;
+
+                card.innerHTML = `
+                    <div class="card-banner">
+                        <div style="width:100%; height:100%; background-size: cover; background-position: center; ${bannerStyle}"></div>
+                    </div>
+                    <div class="server-icon-wrapper">
+                        ${iconHtml}
+                    </div>
+                    <div class="checkbox-indicator"><i class="fas fa-check"></i></div>
+                    <div class="card-content">
+                        <div class="server-title">
+                            <div class="server-name" title="${name}">${name}</div>
+                            <div class="server-badges">${badgesHtml}</div>
+                        </div>
+                        <div class="server-meta">
+                            <span>ID: ${dm.id}</span>
+                            <div class="card-actions"></div>
+                        </div>
+                    </div>
+                `;
+
+                card.addEventListener('click', (e) => {
+                    toggleSelectionDM(dm.id, card);
+                });
+
+                card.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    toggleLockDM(dm.id, card);
+                });
+
+                fragment.appendChild(card);
+            });
+
+            elements.dmsContainer.appendChild(fragment);
+        }
+
+        function toggleLockDM(dmId, card) {
+            if (lockedDMs.has(dmId)) {
+                lockedDMs.delete(dmId);
                 card.classList.remove('locked');
-                showToast('Server unlocked', 'success');
+                showToast('DM unlocked', 'success');
             } else {
-                if (selectedGuilds.has(guildId)) {
-                    selectedGuilds.delete(guildId);
+                if (selectedDMs.has(dmId)) {
+                    selectedDMs.delete(dmId);
                     card.classList.remove('selected');
                     updateActionBar();
                 }
-                lockedGuilds.add(guildId);
+                lockedDMs.add(dmId);
                 card.classList.add('locked');
-                showToast('Server locked (Safe Mode)', 'success');
+                showToast('DM locked (Safe Mode)', 'success');
             }
+        }
+
+        function toggleSelectionDM(dmId, card) {
+            if (lockedDMs.has(dmId)) {
+                showToast('This DM is locked!', 'error');
+                return;
+            }
+
+            if (selectedDMs.has(dmId)) {
+                selectedDMs.delete(dmId);
+                card.classList.remove('selected');
+            } else {
+                selectedDMs.add(dmId);
+                card.classList.add('selected');
+            }
+            updateActionBar();
         }
 
         function toggleSelection(guildId, card) {
@@ -1023,72 +1380,103 @@
         }
 
         function updateActionBar() {
-            const count = selectedGuilds.size;
+            const selectedSet = currentTab === 'servers' ? selectedGuilds : selectedDMs;
+            const count = selectedSet.size;
             elements.selectedCount.textContent = count;
+            elements.selectedType.textContent = currentTab;
+
+            const actionText = currentTab === 'servers' ? 'Leave Selected' : 'Close Selected';
+            elements.processBtn.innerHTML = `<i class="fas fa-${currentTab === 'servers' ? 'sign-out-alt' : 'times'}"></i> ${actionText}`;
 
             if (count > 0) {
-                elements.actionBar.classList.add('visible');
+                elements.actionBar.classList.remove('hidden');
             } else {
-                elements.actionBar.classList.remove('visible');
+                elements.actionBar.classList.add('hidden');
             }
         }
 
+        function updateStats() {
+            const items = currentTab === 'servers' ? allGuilds : allDMs;
+            elements.itemCount.textContent = items.length;
+            elements.itemType.textContent = currentTab === 'servers' ? 'Servers' : 'DMs';
+        }
+
         function toggleSelectAll() {
-            const visibleCards = Array.from(elements.container.children);
-            const selectableCards = visibleCards.filter(card => !lockedGuilds.has(card.dataset.id));
-            const allSelected = selectableCards.every(card => selectedGuilds.has(card.dataset.id));
+            const container = currentTab === 'servers' ? elements.serversContainer : elements.dmsContainer;
+            const selectedSet = currentTab === 'servers' ? selectedGuilds : selectedDMs;
+            const lockedSet = currentTab === 'servers' ? lockedGuilds : lockedDMs;
+            const visibleCards = Array.from(container.children);
+            const selectableCards = visibleCards.filter(card => !lockedSet.has(card.dataset.id));
+            const allSelected = selectableCards.every(card => selectedSet.has(card.dataset.id));
 
             selectableCards.forEach(card => {
                 const id = card.dataset.id;
                 if (allSelected) {
-                    selectedGuilds.delete(id);
+                    selectedSet.delete(id);
                     card.classList.remove('selected');
                 } else {
-                    selectedGuilds.add(id);
+                    selectedSet.add(id);
                     card.classList.add('selected');
                 }
             });
             updateActionBar();
         }
 
-        function filterServers() {
+        function filterItems() {
             const query = elements.searchInput.value.toLowerCase();
-            const filtered = allGuilds.filter(g =>
-                g.name.toLowerCase().includes(query) || g.id.includes(query)
-            );
-            renderServers(filtered);
+            currentPage = 1;
+            if (currentTab === 'servers') {
+                const filtered = allGuilds.filter(g =>
+                    g.name.toLowerCase().includes(query) || g.id.includes(query)
+                );
+                renderServers(filtered);
+            } else {
+                const filtered = allDMs.filter(dm => {
+                    const name = dm.type === 1 ? dm.recipients[0].username : (dm.name || dm.recipients.map(r => r.username).join(', '));
+                    return name.toLowerCase().includes(query) || dm.id.includes(query);
+                });
+                renderDMs(filtered);
+            }
         }
 
-        function sortServers(criteria) {
-            const sorted = [...allGuilds].sort((a, b) => {
-                switch (criteria) {
-                    case 'name-asc': return a.name.localeCompare(b.name);
-                    case 'name-desc': return b.name.localeCompare(a.name);
-                    case 'newest': return BigInt(b.id) > BigInt(a.id) ? 1 : -1;
-                    case 'oldest': return BigInt(a.id) > BigInt(b.id) ? 1 : -1;
-                    default: return 0;
-                }
-            });
-            renderServers(sorted);
-            showToast(`Sorted by ${criteria.replace('-', ' ')}`);
+        function sortItems(criteria) {
+            currentPage = 1;
+            if (currentTab === 'servers') {
+                const sorted = [...allGuilds].sort((a, b) => {
+                    switch (criteria) {
+                        case 'name-asc': return a.name.localeCompare(b.name);
+                        case 'name-desc': return b.name.localeCompare(a.name);
+                        case 'newest': return BigInt(b.id) > BigInt(a.id) ? 1 : -1;
+                        case 'oldest': return BigInt(a.id) > BigInt(b.id) ? 1 : -1;
+                        default: return 0;
+                    }
+                });
+                allGuilds = sorted;
+                renderServers(allGuilds);
+            } else {
+                currentDMFilter = criteria;
+                renderDMsFiltered();
+            }
+            showToast(currentTab === 'servers' ? `Sorted by ${criteria.replace('-', ' ')}` : `Filtered to ${criteria}`);
         }
 
-        function exportServerList() {
-            if (allGuilds.length === 0) return showToast('No servers to export', 'error');
+        function exportList() {
+            const data = currentTab === 'servers' ? allGuilds : allDMs;
+            if (data.length === 0) return showToast('No items to export', 'error');
 
-            const data = JSON.stringify(allGuilds, null, 2);
-            const blob = new Blob([data], { type: 'application/json' });
+            const jsonData = JSON.stringify(data, null, 2);
+            const blob = new Blob([jsonData], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
 
             const a = document.createElement('a');
             a.href = url;
-            a.download = `discord-servers-${new Date().toISOString().slice(0, 10)}.json`;
+            a.download = `discord-${currentTab}-${new Date().toISOString().slice(0, 10)}.json`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
 
-            showToast('Server list exported!');
+            showToast(`${currentTab} list exported!`);
         }
 
         async function createInvite(guildId) {
@@ -1140,95 +1528,150 @@
         }
 
         function handleSmartSelect(action) {
-            const visibleCards = Array.from(elements.container.children);
-            let count = 0;
+            const selectedSet = currentTab === 'servers' ? selectedGuilds : selectedDMs;
+            const lockedSet = currentTab === 'servers' ? lockedGuilds : lockedDMs;
+            const items = currentTab === 'servers' ? allGuilds : allDMs;
 
-            visibleCards.forEach(card => {
-                const guildId = card.dataset.id;
-                const guild = allGuilds.find(g => g.id === guildId);
-                if (!guild || lockedGuilds.has(guildId)) return;
+            const matchingIds = [];
+            items.forEach(item => {
+                if (lockedSet.has(item.id)) return;
 
-                let shouldSelect = false;
-
-                if (action === 'no-icon') {
-                    if (!guild.icon) shouldSelect = true;
-                } else if (action === 'non-admin') {
-                    const isOwner = guild.owner;
-                    const isAdmin = (BigInt(guild.permissions) & 0x8n) === 0x8n;
-                    if (!isOwner && !isAdmin) shouldSelect = true;
+                let matches = false;
+                if (currentTab === 'servers') {
+                    if (action === 'no-icon' && !item.icon) matches = true;
+                    else if (action === 'non-admin') {
+                        const isOwner = item.owner;
+                        const isAdmin = (BigInt(item.permissions) & 0x8n) === 0x8n;
+                        if (!isOwner && !isAdmin) matches = true;
+                    }
+                } else {
+                    if (action === 'bots' && item.type === 1 && item.recipients[0].bot) matches = true;
+                    else if (action === 'groups' && item.type === 3) matches = true;
+                    else if (action === 'users' && item.type === 1 && !item.recipients[0].bot) matches = true;
                 }
 
-                if (shouldSelect) {
-                    selectedGuilds.add(guildId);
-                    card.classList.add('selected');
-                    count++;
+                if (matches) matchingIds.push(item.id);
+            });
+
+            const anySelected = matchingIds.some(id => selectedSet.has(id));
+
+            matchingIds.forEach(id => {
+                if (anySelected) {
+                    selectedSet.delete(id);
+                } else {
+                    selectedSet.add(id);
                 }
             });
+
+            renderCurrent();
 
             updateActionBar();
-            showToast(`Smart Select: Selected ${count} servers`);
+            const actionName = action.replace('-', ' ');
+            showToast(`Smart Select: ${anySelected ? 'Unselected' : 'Selected'} ${matchingIds.length} ${currentTab}`);
         }
 
-        async function leaveSelectedServers() {
-            const count = selectedGuilds.size;
-            let leaveCount = 0;
-            let deleteCount = 0;
-            const guildsToProcess = Array.from(selectedGuilds).map(guildId => {
-                const guild = allGuilds.find(g => g.id === guildId);
-                if (guild && guild.owner) {
-                    deleteCount++;
-                    return { id: guildId, action: 'delete' };
-                } else {
-                    leaveCount++;
-                    return { id: guildId, action: 'leave' };
-                }
-            });
+        async function processSelected() {
+            const selectedSet = currentTab === 'servers' ? selectedGuilds : selectedDMs;
+            const count = selectedSet.size;
+            const itemType = currentTab === 'servers' ? 'servers' : 'DMs';
+            const actionText = currentTab === 'servers' ? 'leave/delete' : 'close';
 
-            if (!confirm(`Are you sure you want to leave ${leaveCount} servers and delete ${deleteCount} servers? This cannot be undone.`)) return;
+            if (!confirm(`Are you sure you want to ${actionText} ${count} ${itemType}? This cannot be undone.`)) return;
 
-            const btn = elements.leaveBtn;
+            const btn = elements.processBtn;
             const originalText = btn.innerHTML;
             btn.disabled = true;
 
             let processedCount = 0;
 
-            for (let i = 0; i < guildsToProcess.length; i++) {
-                const { id: guildId, action } = guildsToProcess[i];
-                const actionText = action === 'delete' ? 'Deleting' : 'Leaving';
-                btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${actionText} ${processedCount + 1}/${count}`;
-
-                try {
-                    const endpoint = action === 'delete' ? `${API_BASE}/guilds/${guildId}` : `${API_BASE}/users/@me/guilds/${guildId}`;
-                    const response = await fetch(endpoint, {
-                        method: 'DELETE',
-                        headers: { 'Authorization': userToken }
-                    });
-
-                    if (response.ok || response.status === 404) {
-                        selectedGuilds.delete(guildId);
-                        allGuilds = allGuilds.filter(g => g.id !== guildId);
-
-                        const card = document.querySelector(`.server-card[data-id="${guildId}"]`);
-                        if (card) card.remove();
-
-                        processedCount++;
+            if (currentTab === 'servers') {
+                let leaveCount = 0;
+                let deleteCount = 0;
+                const guildsToProcess = Array.from(selectedSet).map(guildId => {
+                    const guild = allGuilds.find(g => g.id === guildId);
+                    if (guild && guild.owner) {
+                        deleteCount++;
+                        return { id: guildId, action: 'delete' };
+                    } else {
+                        leaveCount++;
+                        return { id: guildId, action: 'leave' };
                     }
-                } catch (error) {
-                    console.error(`Failed to ${action} guild ${guildId}:`, error);
-                }
+                });
 
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                for (let i = 0; i < guildsToProcess.length; i++) {
+                    const { id: guildId, action } = guildsToProcess[i];
+                    const actionText = action === 'delete' ? 'Deleting' : 'Leaving';
+                    btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${actionText} ${processedCount + 1}/${count}`;
+
+                    try {
+                        const endpoint = action === 'delete' ? `${API_BASE}/guilds/${guildId}` : `${API_BASE}/users/@me/guilds/${guildId}`;
+                        const response = await fetch(endpoint, {
+                            method: 'DELETE',
+                            headers: { 'Authorization': userToken }
+                        });
+
+                        if (response.ok || response.status === 404) {
+                            selectedGuilds.delete(guildId);
+                            allGuilds = allGuilds.filter(g => g.id !== guildId);
+
+                            const card = document.querySelector(`.server-card[data-id="${guildId}"]`);
+                            if (card) card.remove();
+
+                            processedCount++;
+                        }
+                    } catch (error) {
+                        console.error(`Failed to ${action} guild ${guildId}:`, error);
+                    }
+
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+            } else {
+                const dmsToClose = Array.from(selectedSet);
+
+                for (let i = 0; i < dmsToClose.length; i++) {
+                    const dmId = dmsToClose[i];
+                    btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Closing ${processedCount + 1}/${count}`;
+
+                    try {
+                        const response = await fetch(`${API_BASE}/channels/${dmId}`, {
+                            method: 'DELETE',
+                            headers: { 'Authorization': userToken }
+                        });
+
+                        if (response.ok || response.status === 404) {
+                            selectedDMs.delete(dmId);
+                            allDMs = allDMs.filter(d => d.id !== dmId);
+
+                            const card = document.querySelector(`.server-card[data-id="${dmId}"]`);
+                            if (card) card.remove();
+
+                            processedCount++;
+                        }
+                    } catch (error) {
+                        console.error(`Failed to close DM ${dmId}:`, error);
+                    }
+
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
             }
 
             btn.innerHTML = originalText;
             btn.disabled = false;
 
-            renderServers(allGuilds);
+            const items = currentTab === 'servers' ? allGuilds : allDMs;
+            const totalPages = Math.ceil(items.length / itemsPerPage);
+            if (currentPage > totalPages) {
+                currentPage = totalPages || 1;
+            }
+
+            if (currentTab === 'servers') renderServers(allGuilds);
+            else renderDMs(allDMs);
             updateActionBar();
-            showToast(`Successfully processed ${processedCount} servers`, 'success');
+            updateStats();
+            showToast(`Successfully processed ${processedCount} ${itemType}`, 'success');
         }
     </script>
 </body>
 </html>
 
-<!-- You won't see any code sending the token anywhere. Your protection is our priority! | 7s Tools -->
+<!-- You won't see any code sending the token anywhere. Your protection is our priority! | 7s Tools -->  
