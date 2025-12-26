@@ -968,6 +968,7 @@
             selectedDMs.clear();
             lockedGuilds.clear();
             lockedDMs.clear();
+            elements.actionBar.classList.add('hidden');
             showTokenPanel();
             showToast('Logged out');
         }
@@ -1105,7 +1106,10 @@
                     headers: { 'Authorization': userToken }
                 });
 
-                if (!response.ok) throw new Error('Invalid token');
+                if (!response.ok) {
+                    if (response.status === 401) throw new Error('Invalid or expired token. Please provide a new one.');
+                    else throw new Error('Failed to load servers. Please try again.');
+                }
 
                 allGuilds = await response.json();
 
@@ -1120,7 +1124,7 @@
                 }
                 showToast(`Successfully loaded ${allGuilds.length} servers`);
             } catch (error) {
-                showToast('Failed to load servers. Check token.', 'error');
+                showToast(error.message, 'error');
             } finally {
                 elements.loadBtn.innerHTML = '<i class="fas fa-bolt"></i> Load Servers';
                 elements.loadBtn.disabled = false;
@@ -1143,7 +1147,10 @@
                     headers: { 'Authorization': userToken }
                 });
 
-                if (!response.ok) throw new Error('Invalid token');
+                if (!response.ok) {
+                    if (response.status === 401) throw new Error('Invalid or expired token. Please provide a new one.');
+                    else throw new Error('Failed to load DMs. Please try again.');
+                }
 
                 allDMs = (await response.json()).filter(c => c.type === 1 || c.type === 3);
                 currentPage = 1;
@@ -1154,7 +1161,7 @@
                 }
                 showToast(`Successfully loaded ${allDMs.length} DMs`);
             } catch (error) {
-                showToast('Failed to load DMs. Check token.', 'error');
+                showToast(error.message, 'error');
             } finally {
                 elements.refreshBtn.innerHTML = '<i class="fas fa-refresh"></i> Refresh';
                 elements.refreshBtn.disabled = false;
@@ -1402,23 +1409,23 @@
         }
 
         function toggleSelectAll() {
-            const container = currentTab === 'servers' ? elements.serversContainer : elements.dmsContainer;
             const selectedSet = currentTab === 'servers' ? selectedGuilds : selectedDMs;
             const lockedSet = currentTab === 'servers' ? lockedGuilds : lockedDMs;
-            const visibleCards = Array.from(container.children);
-            const selectableCards = visibleCards.filter(card => !lockedSet.has(card.dataset.id));
-            const allSelected = selectableCards.every(card => selectedSet.has(card.dataset.id));
+            const items = currentTab === 'servers' ? allGuilds : allDMs;
 
-            selectableCards.forEach(card => {
-                const id = card.dataset.id;
+            const selectableItems = items.filter(item => !lockedSet.has(item.id));
+            const allSelected = selectableItems.every(item => selectedSet.has(item.id));
+
+            selectableItems.forEach(item => {
+                const id = item.id;
                 if (allSelected) {
                     selectedSet.delete(id);
-                    card.classList.remove('selected');
                 } else {
                     selectedSet.add(id);
-                    card.classList.add('selected');
                 }
             });
+
+            renderCurrent();
             updateActionBar();
         }
 
