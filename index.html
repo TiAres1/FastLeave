@@ -4,7 +4,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>7sTools | FastLeave</title>
     <meta name="description" content="Quickly leave multiple Discord servers | FastLeave by 7sTools">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -76,6 +76,7 @@
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
             padding: 1.25rem 2rem;
+            padding-top: calc(1.25rem + env(safe-area-inset-top));
             border-bottom: 1px solid var(--border-glass);
             display: flex;
             align-items: center;
@@ -713,6 +714,7 @@
             header {
                 flex-direction: column;
                 padding: 1.5rem;
+                padding-top: calc(1.5rem + env(safe-area-inset-top));
                 gap: 1.5rem;
                 background: rgba(5, 5, 5, 0.95);
                 border-bottom: 1px solid rgba(255,255,255,0.05);
@@ -748,7 +750,10 @@
                 right: -13px;
             }
 
-            .dashboard { padding: 1.5rem; }
+            .dashboard { 
+                padding: 1.5rem;
+                padding-bottom: calc(1.5rem + env(safe-area-inset-bottom) + 120px);
+            }
             .servers-grid {
                 grid-template-columns: repeat(2, 1fr); 
                 gap: 0.8rem;
