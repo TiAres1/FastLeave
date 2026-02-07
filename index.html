@@ -15,16 +15,6 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="icon" type="image/png" sizes="512x512" href="/android-chrome-512x512.png" />
     <link rel="icon" type="image/png" sizes="192x192" href="/android-chrome-192x192.png" />
-    <script>
-        document.addEventListener('contextmenu', event => event.preventDefault());
-        document.onkeydown = function(e) {
-            if(e.keyCode == 123) return false;
-            if(e.ctrlKey && e.shiftKey && e.keyCode == 'I'.charCodeAt(0)) return false;
-            if(e.ctrlKey && e.shiftKey && e.keyCode == 'C'.charCodeAt(0)) return false;
-            if(e.ctrlKey && e.shiftKey && e.keyCode == 'J'.charCodeAt(0)) return false;
-            if(e.ctrlKey && e.keyCode == 'U'.charCodeAt(0)) return false;
-        }
-    </script>
     <style>
         :root {
             --bg-body: #050505;
@@ -142,8 +132,8 @@
 
         .search-wrapper i {
             position: absolute;
-            left: 30px;
-            top: 59%;
+            left: 17px;
+            top: 54%;
             transform: translateY(-50%);
             color: var(--text-muted);
             font-size: 0.85rem;
@@ -857,8 +847,14 @@
             }
 
             .search-wrapper i:first-child {
-                left: 30px; 
+                left: 30px;
+                top: 62%;
             }
+            .search-wrapper i:last-child {
+                left: 30px;
+                top: 59%;
+            }
+            .mobile-search-close { display: block; }
             .mobile-search-close { display: block; }
             
             #searchInput {
