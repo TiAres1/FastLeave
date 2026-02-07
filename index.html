@@ -33,6 +33,14 @@
 
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
 
+        i.fas, i.fab, i.fa, .fa, .fas, .fab {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            vertical-align: middle;
+            line-height: 1;
+        }
+
         body {
             background-color: var(--bg-body);
             color: var(--text-main);
@@ -403,6 +411,9 @@
             cursor: pointer;
             transition: all 0.2s;
             font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
         .btn-text:hover { 
             background: var(--bg-glass-hover); 
@@ -912,7 +923,7 @@
 
             .toolbar { flex-direction: column; align-items: stretch; gap: 1.5rem; }
             .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; }
-            .actions .btn-text { text-align: center; justify-content: center; display: flex; gap: 6px; padding: 12px; }
+            .actions .btn-text { text-align: center; justify-content: center; display: flex; gap: 10px; padding: 12px; }
             .actions .dropdown { width: 100%; }
             .actions .dropdown button { width: 100%; }
         }
@@ -1079,7 +1090,9 @@
         let currentPage = 1;
         let itemsPerPage = window.innerWidth > 768 ? 20 : 10;
         let currentDMFilter = 'all';
-        let currentSortCriteria = null; 
+        let currentSortCriteria = null;
+        let isProcessing = false;
+        let isCreatingInvite = false;
 
         const elements = {
             tokenInput: document.getElementById('tokenInput'),
@@ -1497,7 +1510,7 @@
                 if (inviteBtn) {
                     inviteBtn.addEventListener('click', (e) => {
                         e.stopPropagation();
-                        createInvite(guild.id);
+                        createInvite(guild.id, inviteBtn);
                     });
                 }
 
@@ -1780,7 +1793,16 @@
             showToast(`${currentTab} list exported!`);
         }
 
-        async function createInvite(guildId) {
+        async function createInvite(guildId, buttonElement) {
+            if (isCreatingInvite) return;
+            isCreatingInvite = true;
+            
+            const inviteBtn = buttonElement || document.querySelector(`.server-card[data-id="${guildId}"] .invite-btn`);
+            if (inviteBtn) {
+                inviteBtn.disabled = true;
+                inviteBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            }
+            
             showToast('Generating invite...', 'success');
             try {
                 const channelsResp = await fetch(`${API_BASE}/guilds/${guildId}/channels`, {
@@ -1825,6 +1847,12 @@
                 document.execCommand('copy');
                 document.body.removeChild(textArea);
                 showToast('Copied server link (No invite perms)', 'error');
+            } finally {
+                if (inviteBtn) {
+                    inviteBtn.disabled = false;
+                    inviteBtn.innerHTML = '<i class="fas fa-link"></i>';
+                }
+                isCreatingInvite = false;
             }
         }
 
@@ -1872,6 +1900,11 @@
         }
 
         async function processSelected() {
+            if (isProcessing) {
+                showToast('Please wait for the current operation to complete', 'error');
+                return;
+            }
+            
             const selectedSet = currentTab === 'servers' ? selectedGuilds : selectedDMs;
             const count = selectedSet.size;
             const itemType = currentTab === 'servers' ? 'servers' : 'DMs';
@@ -1879,6 +1912,7 @@
 
             if (!confirm(`Are you sure you want to ${actionText} ${count} ${itemType}? This cannot be undone.`)) return;
 
+            isProcessing = true;
             const btn = elements.processBtn;
             const originalText = btn.innerHTML;
             btn.disabled = true;
@@ -1958,6 +1992,7 @@
 
             btn.innerHTML = originalText;
             btn.disabled = false;
+            isProcessing = false;
 
             const items = currentTab === 'servers' ? allGuilds : allDMs;
             const totalPages = Math.ceil(items.length / itemsPerPage);
